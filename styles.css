@@ -10,21 +10,22 @@ body {
     color: #e0e0e0;
     min-height: 100vh;
     overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
 }
 
 header {
     background: #1a1d27;
     border-bottom: 1px solid #2a2d3a;
-    padding: 16px 24px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
 }
 
 header h1 {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     font-weight: 600;
     color: #f0f0f0;
 }
@@ -38,15 +39,16 @@ header h1 {
 }
 
 .mode-btn {
-    padding: 8px 20px;
+    padding: 10px 20px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 500;
     transition: all 0.2s;
     background: transparent;
     color: #888;
+    min-height: 44px;
 }
 
 .mode-btn.active {
@@ -61,15 +63,16 @@ header h1 {
 
 nav.image-tabs {
     display: flex;
-    gap: 4px;
-    padding: 12px 24px;
+    gap: 6px;
+    padding: 10px 16px;
     background: #14161e;
     border-bottom: 1px solid #2a2d3a;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .tab {
-    padding: 10px 24px;
+    padding: 12px 20px;
     border: 1px solid #2a2d3a;
     border-radius: 8px;
     background: #1a1d27;
@@ -79,6 +82,7 @@ nav.image-tabs {
     font-weight: 500;
     transition: all 0.2s;
     white-space: nowrap;
+    min-height: 44px;
 }
 
 .tab:hover {
@@ -93,12 +97,12 @@ nav.image-tabs {
 }
 
 main {
-    padding: 20px 24px;
+    padding: 16px;
 }
 
 .workspace {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     max-width: 1400px;
     margin: 0 auto;
 }
@@ -111,18 +115,20 @@ main {
     border: 2px solid #2a2d3a;
     overflow: hidden;
     cursor: crosshair;
-    min-height: 400px;
+    min-height: 300px;
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: pan-x pan-y;
 }
 
 .image-container img {
     max-width: 100%;
-    max-height: 80vh;
+    max-height: 75vh;
     display: block;
     user-select: none;
     -webkit-user-drag: none;
+    pointer-events: none;
 }
 
 #markers-layer {
@@ -142,8 +148,8 @@ main {
 }
 
 .marker-dot {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: #3b82f6;
     border: 3px solid white;
@@ -152,10 +158,11 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 700;
     color: white;
     transition: transform 0.15s, background 0.15s;
+    -webkit-touch-callout: none;
 }
 
 .marker-dot:hover {
@@ -164,31 +171,35 @@ main {
 
 .marker-label {
     position: absolute;
-    top: 32px;
+    top: 40px;
     left: 50%;
     transform: translateX(-50%);
     background: #1a1d27;
-    border: 1px solid #3b82f6;
+    border: 2px solid #3b82f6;
     color: #e0e0e0;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
     white-space: nowrap;
-    min-width: 40px;
+    min-width: 44px;
     text-align: center;
-    min-height: 24px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .marker-label.empty {
     border-style: dashed;
     border-color: #555;
     color: #666;
-    min-width: 80px;
+    min-width: 90px;
 }
 
 .marker-label.drop-hover {
     border-color: #22c55e;
     background: #1a2e1a;
+    border-style: solid;
 }
 
 .marker.correct .marker-dot {
@@ -210,23 +221,23 @@ main {
 }
 
 .sidebar {
-    width: 300px;
+    width: 320px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .instructions {
     background: #1a1d27;
     border: 1px solid #2a2d3a;
     border-radius: 10px;
-    padding: 16px;
+    padding: 14px;
 }
 
 .instructions h3 {
     font-size: 0.95rem;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     color: #3b82f6;
 }
 
@@ -240,40 +251,47 @@ main {
     background: #1a1d27;
     border: 1px solid #2a2d3a;
     border-radius: 10px;
-    padding: 16px;
+    padding: 14px;
     flex: 1;
     overflow-y: auto;
-    max-height: 50vh;
+    -webkit-overflow-scrolling: touch;
 }
 
 .word-bank h3 {
     font-size: 0.95rem;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     color: #f0f0f0;
 }
 
 #word-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .word-chip {
-    padding: 6px 12px;
+    padding: 10px 14px;
     background: #252833;
     border: 1px solid #3a3d4a;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
     cursor: grab;
     transition: all 0.15s;
     user-select: none;
     color: #ddd;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
 }
 
 .word-chip:hover {
     background: #3b82f6;
     border-color: #3b82f6;
     color: white;
+}
+
+.word-chip:active {
+    transform: scale(0.96);
 }
 
 .word-chip.used {
@@ -283,7 +301,30 @@ main {
 }
 
 .word-chip.dragging {
-    opacity: 0.5;
+    opacity: 0.4;
+}
+
+.word-chip.selected {
+    background: #3b82f6;
+    border-color: #60a5fa;
+    color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Touch drag ghost */
+.touch-ghost {
+    position: fixed;
+    padding: 10px 14px;
+    background: #3b82f6;
+    border: 2px solid #60a5fa;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: white;
+    pointer-events: none;
+    z-index: 9999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    transform: rotate(-2deg);
+    white-space: nowrap;
 }
 
 .actions {
@@ -293,13 +334,18 @@ main {
 }
 
 .action-btn {
-    padding: 12px;
+    padding: 14px;
     border: none;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 48px;
+}
+
+.action-btn:active {
+    transform: scale(0.97);
 }
 
 .save-btn {
@@ -347,17 +393,9 @@ main {
     margin: 12px 0;
 }
 
-.results .score.perfect {
-    color: #22c55e;
-}
-
-.results .score.good {
-    color: #eab308;
-}
-
-.results .score.poor {
-    color: #ef4444;
-}
+.results .score.perfect { color: #22c55e; }
+.results .score.good { color: #eab308; }
+.results .score.poor { color: #ef4444; }
 
 .results .detail {
     font-size: 0.82rem;
@@ -366,9 +404,9 @@ main {
 }
 
 .results .wrong-item {
-    padding: 4px 0;
+    padding: 6px 0;
     border-bottom: 1px solid #2a2d3a;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
 }
 
 .results .wrong-item:last-child {
@@ -383,32 +421,29 @@ main {
     background: #1a1d27;
     border: 1px solid #3b82f6;
     color: #e0e0e0;
-    padding: 12px 24px;
+    padding: 14px 24px;
     border-radius: 10px;
     font-size: 0.9rem;
     transition: transform 0.3s ease;
     z-index: 1000;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    max-width: 90vw;
+    text-align: center;
 }
 
 .toast.show {
     transform: translateX(-50%) translateY(0);
 }
 
-.toast.success {
-    border-color: #22c55e;
-}
+.toast.success { border-color: #22c55e; }
+.toast.error { border-color: #ef4444; }
 
-.toast.error {
-    border-color: #ef4444;
-}
-
-/* Student mode: image-container cursor changes */
+/* Student mode */
 .student-mode .image-container {
     cursor: default;
 }
 
-/* Responsive */
+/* ---- Responsive / Mobile ---- */
 @media (max-width: 900px) {
     .workspace {
         flex-direction: column;
@@ -416,9 +451,54 @@ main {
     .sidebar {
         width: 100%;
     }
+    .word-bank {
+        max-height: 40vh;
+    }
 }
 
-/* Context menu prevention */
-.marker-dot {
-    -webkit-touch-callout: none;
+@media (max-width: 600px) {
+    header {
+        padding: 10px 12px;
+    }
+    header h1 {
+        font-size: 1rem;
+        width: 100%;
+    }
+    nav.image-tabs {
+        padding: 8px 12px;
+        gap: 4px;
+    }
+    .tab {
+        padding: 10px 14px;
+        font-size: 0.82rem;
+    }
+    main {
+        padding: 10px;
+    }
+    .image-container {
+        min-height: 250px;
+    }
+    .marker-dot {
+        width: 32px;
+        height: 32px;
+        font-size: 0.75rem;
+    }
+    .marker-label {
+        top: 36px;
+        font-size: 0.75rem;
+        padding: 5px 8px;
+    }
+    .word-chip {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+    .sidebar {
+        gap: 8px;
+    }
+}
+
+/* Prevent text selection during drag on touch */
+body.touch-dragging {
+    user-select: none;
+    -webkit-user-select: none;
 }
