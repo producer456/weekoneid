@@ -1,6 +1,7 @@
 // ============================================================
 // BIO 40A Lab Quiz — Teacher/Student Labeling App
 // Touch + Desktop + Leader Lines + Zoom/Pan
+// Bug fixes: touch state, mode switching, zoom gestures
 // ============================================================
 
 const IMAGE_DATA = {
@@ -54,6 +55,9 @@ let markers = {};
 let answerKeys = {};
 let markerIdCounter = 0;
 let draggedWord = null;
+
+// Separate storage for teacher's in-progress work (FIX #1)
+let teacherMarkers = {};
 
 // Touch drag state (word chips)
 let touchDragEl = null;
@@ -144,13 +148,12 @@ function clampPan() {
 // Convert screen coordinates to image-container percentage coordinates
 function screenToContainerPct(clientX, clientY) {
     const container = document.getElementById('image-container');
-    // Get the container's untransformed dimensions
     const w = container.scrollWidth;
     const h = container.scrollHeight;
-    // Get viewport position
     const viewport = document.getElementById('image-viewport');
     const vRect = viewport.getBoundingClientRect();
-    // Account for pan and zoom
+    // Reverse transform: translate(panX,panY) scale(zoom)
+    // Point in container space = (screen_in_viewport - pan) / zoom
     const localX = (clientX - vRect.left - panX) / zoomLevel;
     const localY = (clientY - vRect.top - panY) / zoomLevel;
     return {
@@ -170,7 +173,6 @@ function setupZoomPan() {
         zoomLevel = Math.max(1, Math.min(5, zoomLevel * delta));
 
         if (zoomLevel > 1) {
-            // Zoom toward mouse position
             const vRect = viewport.getBoundingClientRect();
             const mx = e.clientX - vRect.left;
             const my = e.clientY - vRect.top;
@@ -188,12 +190,9 @@ function setupZoomPan() {
     // ---- Mouse pan (drag on viewport when zoomed) ----
     viewport.addEventListener('mousedown', (e) => {
         if (zoomLevel <= 1.05) return;
-        // Only pan if clicking on the image area, not on markers/labels
         if (e.target.closest('.marker-dot') || e.target.closest('.marker-label') ||
             e.target.closest('.marker-delete') || e.target.closest('.zoom-controls')) return;
 
-        // Don't start panning if we might be placing a marker — we'll determine
-        // intent by whether the user moves (pan) or just clicks (place marker)
         panStart = { x: e.clientX, y: e.clientY, startPanX: panX, startPanY: panY, moved: false };
     });
 
@@ -220,22 +219,30 @@ function setupZoomPan() {
 
     document.addEventListener('mouseup', () => {
         if (panStart) {
-            isPanning = false;
-            viewport.classList.remove('panning');
+            // Delay clearing isPanning so click handler can check it
+            const wasPanning = panStart.moved;
             panStart = null;
+            viewport.classList.remove('panning');
+            if (wasPanning) {
+                setTimeout(() => { isPanning = false; }, 50);
+            } else {
+                isPanning = false;
+            }
         }
     });
 
     // ---- Touch: pinch zoom + two-finger pan ----
-    let lastTouchCount = 0;
     let touchPanStart = null;
 
     viewport.addEventListener('touchstart', (e) => {
         if (e.target.closest('.zoom-controls')) return;
 
         if (e.touches.length === 2) {
-            // Pinch zoom start
             e.preventDefault();
+            // FIX #10: Cancel any in-progress label drag when pinch starts
+            if (draggingLabel !== null) {
+                cancelLabelDrag();
+            }
             const t1 = e.touches[0];
             const t2 = e.touches[1];
             pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
@@ -247,7 +254,6 @@ function setupZoomPan() {
                 startPanY: panY
             };
         } else if (e.touches.length === 1 && zoomLevel > 1.05) {
-            // Single finger pan when zoomed
             const t = e.touches[0];
             if (!e.target.closest('.marker-dot') && !e.target.closest('.marker-label') &&
                 !e.target.closest('.marker-delete')) {
@@ -258,32 +264,31 @@ function setupZoomPan() {
                 };
             }
         }
-        lastTouchCount = e.touches.length;
     }, { passive: false });
 
     viewport.addEventListener('touchmove', (e) => {
         if (e.target.closest('.zoom-controls')) return;
 
-        if (e.touches.length === 2) {
+        if (e.touches.length === 2 && touchPanStart && !touchPanStart.isSingleFinger) {
             e.preventDefault();
             const t1 = e.touches[0];
             const t2 = e.touches[1];
             const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-            const oldZoom = zoomLevel;
             zoomLevel = Math.max(1, Math.min(5, pinchStartZoom * (dist / pinchStartDist)));
 
-            // Pan with pinch center
+            // FIX #9: Use only anchor-based zoom positioning, not double pan
             if (touchPanStart) {
                 const midX = (t1.clientX + t2.clientX) / 2;
                 const midY = (t1.clientY + t2.clientY) / 2;
                 const vRect = viewport.getBoundingClientRect();
-                const anchorX = midX - vRect.left;
-                const anchorY = midY - vRect.top;
+                const anchorX = touchPanStart.midX - vRect.left;
+                const anchorY = touchPanStart.midY - vRect.top;
+                // Keep the original pinch midpoint fixed in image space
                 panX = anchorX - (anchorX - touchPanStart.startPanX) * (zoomLevel / pinchStartZoom);
                 panY = anchorY - (anchorY - touchPanStart.startPanY) * (zoomLevel / pinchStartZoom);
-                // Also apply pan from mid-point movement
-                panX += midX - touchPanStart.midX;
-                panY += midY - touchPanStart.midY;
+                // Apply only the finger-movement delta (pan gesture)
+                panX += (midX - touchPanStart.midX);
+                panY += (midY - touchPanStart.midY);
             }
 
             if (zoomLevel <= 1) { panX = 0; panY = 0; }
@@ -357,7 +362,13 @@ function setMode(mode) {
 
     document.getElementById('results').style.display = 'none';
 
+    // FIX #1: Save/restore teacher markers when switching modes
     if (mode === 'student') {
+        // Save teacher's current work before switching
+        teacherMarkers[currentImage] = markers[currentImage] ?
+            JSON.parse(JSON.stringify(markers[currentImage])) : [];
+
+        // Load answer key positions for student
         const key = answerKeys[currentImage];
         if (key && key.length > 0) {
             markers[currentImage] = key.map(k => ({
@@ -373,6 +384,12 @@ function setMode(mode) {
             markers[currentImage] = [];
         }
         saveMarkers();
+    } else {
+        // Restore teacher's work when switching back
+        if (teacherMarkers[currentImage] && teacherMarkers[currentImage].length > 0) {
+            markers[currentImage] = JSON.parse(JSON.stringify(teacherMarkers[currentImage]));
+            saveMarkers();
+        }
     }
 
     clearSelectedWord();
@@ -423,10 +440,13 @@ function renderWordBank() {
 
     list.querySelectorAll('.word-chip:not(.used)').forEach(chip => {
         chip.addEventListener('click', (e) => {
+            // FIX #2: check _wasDragged and always allow click
             if (!chip._wasDragged) {
                 e.stopPropagation();
                 selectWord(chip.dataset.word);
             }
+            // Reset flag after click fires so next tap works
+            chip._wasDragged = false;
         });
     });
 }
@@ -489,14 +509,19 @@ function renderMarkers() {
         });
 
         // --- Delete button ---
+        // FIX #4: Use a flag to prevent double-fire from click + touchend
         const deleteBtn = document.createElement('div');
         deleteBtn.className = 'marker-delete';
         deleteBtn.textContent = 'x';
         deleteBtn.style.left = (mk.x + 1.5) + '%';
         deleteBtn.style.top = (mk.y - 2) + '%';
+        let deleteHandled = false;
         const handleDelete = (e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (deleteHandled) return;
+            deleteHandled = true;
+            setTimeout(() => { deleteHandled = false; }, 300);
             if (currentMode === 'teacher') {
                 removeMarker(mk.id);
             } else {
@@ -504,11 +529,7 @@ function renderMarkers() {
             }
         };
         deleteBtn.addEventListener('click', handleDelete);
-        deleteBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handleDelete(e);
-        });
+        deleteBtn.addEventListener('touchend', handleDelete);
 
         // --- Desktop drop targets ---
         label.addEventListener('dragover', (e) => { e.preventDefault(); label.classList.add('drop-hover'); });
@@ -591,7 +612,6 @@ function setupLabelDrag() {
         if (!mk) return;
 
         const container = document.getElementById('image-container');
-        // Convert pixel delta to percentage, accounting for zoom
         const dx = (e.clientX - labelDragStart.mouseX) / zoomLevel;
         const dy = (e.clientY - labelDragStart.mouseY) / zoomLevel;
         const pctDx = (dx / container.scrollWidth) * 100;
@@ -629,7 +649,13 @@ function setupLabelDrag() {
     container.addEventListener('touchmove', (e) => {
         const label = e.target.closest('.draggable-label');
         if (!label || label._touchMarkerId === undefined) return;
-        if (e.touches.length !== 1) return;
+        if (e.touches.length !== 1) {
+            // FIX #10: If a second finger comes down, cancel label drag
+            cancelLabelDrag();
+            label._touchMarkerId = undefined;
+            label._touchMoved = false;
+            return;
+        }
 
         const touch = e.touches[0];
         const dx = touch.clientX - label._touchStartX;
@@ -666,17 +692,33 @@ function setupLabelDrag() {
         }
     }, { passive: false });
 
-    container.addEventListener('touchend', (e) => {
-        const label = e.target.closest('.draggable-label');
-        if (!label) return;
+    // FIX #3: Use document-level touchend to always clean up label drag state
+    document.addEventListener('touchend', (e) => {
+        if (draggingLabel === null) return;
 
-        if (label._touchMoved && draggingLabel !== null) {
-            const touch = e.changedTouches[0];
-            finishLabelDrag(touch.clientX, touch.clientY);
-        }
-        label._touchMarkerId = undefined;
-        label._touchMoved = false;
+        const touch = e.changedTouches[0];
+        finishLabelDrag(touch.clientX, touch.clientY);
+
+        // Clean up any label-specific state
+        document.querySelectorAll('.draggable-label').forEach(label => {
+            label._touchMarkerId = undefined;
+            label._touchMoved = false;
+        });
     });
+}
+
+// FIX #10: Cancel label drag without saving position
+function cancelLabelDrag() {
+    if (draggingLabel === null) return;
+    const mk = findMarker(draggingLabel);
+    if (mk) {
+        delete mk._startDx;
+        delete mk._startDy;
+    }
+    document.querySelectorAll('.label-dragging').forEach(l => l.classList.remove('label-dragging'));
+    draggingLabel = null;
+    labelDragStart = null;
+    renderAll();
 }
 
 function finishLabelDrag(endX, endY) {
@@ -774,6 +816,7 @@ function setupImageClick() {
         touchStartTime = Date.now();
     }, { passive: true });
 
+    // FIX #7: Add { passive: false } so preventDefault works
     container.addEventListener('touchend', (e) => {
         if (currentMode !== 'teacher') return;
         if (!touchStartPos) return;
@@ -795,7 +838,7 @@ function setupImageClick() {
         if (pct.x < 0 || pct.x > 100 || pct.y < 0 || pct.y > 100) { touchStartPos = null; return; }
         addMarker(pct.x, pct.y);
         touchStartPos = null;
-    });
+    }, { passive: false });
 }
 
 // ---- Marker Management ----
@@ -874,7 +917,7 @@ function setupTouchDrag() {
         chip._touchMoved = false;
         chip._touchStartX = e.touches[0].clientX;
         chip._touchStartY = e.touches[0].clientY;
-        chip._wasDragged = false;
+        chip._wasDragged = false; // FIX #2: Reset on every touch start
 
         touchDragEl = chip;
         draggedWord = chip.dataset.word;
