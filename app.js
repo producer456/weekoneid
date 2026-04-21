@@ -570,6 +570,7 @@ function submitAnswers() {
 function resetCurrent() {
     clearSelectedWord();
     if (currentMode === 'student') {
+        // Reload marker positions from answer key but clear all word assignments
         const key = answerKeys[currentImage];
         if (key && key.length > 0) {
             markers[currentImage] = key.map(k => ({
@@ -583,7 +584,8 @@ function resetCurrent() {
             markers[currentImage] = [];
         }
     } else {
-        (markers[currentImage] || []).forEach(m => m.resultClass = null);
+        // Teacher mode: clear all markers and start fresh
+        markers[currentImage] = [];
     }
 
     saveMarkers();
