@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIO 40A Lab Quiz</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>BIO 40A — Week 3 Lab Quiz</h1>
+        <div class="header-controls">
+            <div class="mode-toggle">
+                <button id="btn-teacher" class="mode-btn active" onclick="setMode('teacher')">Teacher Mode</button>
+                <button id="btn-student" class="mode-btn" onclick="setMode('student')">Student Mode</button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="image-tabs">
+        <button class="tab active" data-image="cell_model">The Cell</button>
+        <button class="tab" data-image="skin_diagram">Skin Diagram</button>
+        <button class="tab" data-image="skin_model">Skin Model</button>
+        <button class="tab" data-image="mitosis_stages">Mitosis</button>
+    </nav>
+
+    <main>
+        <div class="workspace">
+            <div class="image-container" id="image-container">
+                <img id="main-image" src="images/cell_model.jpeg" alt="Lab image" draggable="false">
+                <div id="markers-layer"></div>
+            </div>
+
+            <div class="sidebar">
+                <div class="instructions" id="instructions">
+                    <h3>Teacher Mode</h3>
+                    <p>1. Click on the image to place a marker<br>
+                       2. Drag a term from the word bank onto the marker<br>
+                       3. Right-click a marker to remove it<br>
+                       4. Save when done</p>
+                </div>
+
+                <div class="word-bank" id="word-bank">
+                    <h3>Word Bank</h3>
+                    <div id="word-list"></div>
+                </div>
+
+                <div class="actions">
+                    <button id="btn-save" class="action-btn save-btn" onclick="saveAnswerKey()">Save Answer Key</button>
+                    <button id="btn-submit" class="action-btn submit-btn" onclick="submitAnswers()" style="display:none;">Submit Answers</button>
+                    <button id="btn-reset" class="action-btn reset-btn" onclick="resetCurrent()">Reset</button>
+                </div>
+
+                <div id="results" class="results" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
