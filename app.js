@@ -495,7 +495,7 @@ function renderMarkers() {
         if (mk.resultClass) label.classList.add(mk.resultClass);
         label.style.left = labelX + '%';
         label.style.top = labelY + '%';
-        label.textContent = mk.word || 'Drop here';
+        label.textContent = mk.word || `#${idx + 1}`;
         label.dataset.markerId = mk.id;
         label.classList.add('draggable-label');
 

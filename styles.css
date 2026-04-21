@@ -260,18 +260,17 @@ main {
 /* ---- Marker Dots ---- */
 .marker-dot {
     position: absolute;
-    width: 34px;
-    height: 34px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--ocean-light);
-    border: 3px solid white;
-    box-shadow: 0 2px 8px rgba(12, 45, 72, 0.35);
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(12, 45, 72, 0.4);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: 0;
     color: white;
     transform: translate(-50%, -50%);
     z-index: 10;
@@ -280,8 +279,17 @@ main {
     transition: transform 0.15s, background 0.15s;
 }
 
+/* Invisible expanded touch target */
+.marker-dot::after {
+    content: '';
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+}
+
 .marker-dot:hover {
-    transform: translate(-50%, -50%) scale(1.15);
+    transform: translate(-50%, -50%) scale(1.3);
 }
 
 .marker-dot.dot-correct {
@@ -625,7 +633,7 @@ main {
     .tab { padding: 10px 14px; font-size: 0.82rem; }
     main { padding: 10px; }
     .image-container { min-height: 250px; }
-    .marker-dot { width: 34px; height: 34px; font-size: 0.75rem; }
+    .marker-dot { width: 14px; height: 14px; }
     .marker-label { font-size: 0.75rem; padding: 5px 8px; }
     .word-chip { padding: 8px 10px; font-size: 0.8rem; }
     .sidebar { gap: 8px; }
