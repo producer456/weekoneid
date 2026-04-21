@@ -26,10 +26,18 @@
 
     <main>
         <div class="workspace">
-            <div class="image-container" id="image-container">
-                <img id="main-image" src="images/cell_model.jpeg" alt="Lab image" draggable="false">
-                <svg id="lines-layer" xmlns="http://www.w3.org/2000/svg"></svg>
-                <div id="markers-layer"></div>
+            <div class="image-viewport" id="image-viewport">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">+</button>
+                    <span class="zoom-level" id="zoom-level">100%</span>
+                    <button class="zoom-btn" onclick="zoomOut()" title="Zoom out">&minus;</button>
+                    <button class="zoom-btn zoom-fit" onclick="zoomReset()" title="Fit to view">Fit</button>
+                </div>
+                <div class="image-container" id="image-container">
+                    <img id="main-image" src="images/cell_model.jpeg" alt="Lab image" draggable="false">
+                    <svg id="lines-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+                    <div id="markers-layer"></div>
+                </div>
             </div>
 
             <div class="sidebar">
@@ -37,8 +45,9 @@
                     <h3>Teacher Mode</h3>
                     <p>1. Tap the image to place a marker<br>
                        2. Drag a term onto the marker (or tap term, then tap marker)<br>
-                       3. Long-press a marker to remove it<br>
-                       4. Save when done</p>
+                       3. Tap X to remove a marker<br>
+                       4. Use +/- or pinch to zoom, drag to pan<br>
+                       5. Save when done</p>
                 </div>
 
                 <div class="word-bank" id="word-bank">

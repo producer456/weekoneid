@@ -1,6 +1,6 @@
 // ============================================================
 // BIO 40A Lab Quiz — Teacher/Student Labeling App
-// Touch + Desktop + Leader Lines
+// Touch + Desktop + Leader Lines + Zoom/Pan
 // ============================================================
 
 const IMAGE_DATA = {
@@ -55,7 +55,7 @@ let answerKeys = {};
 let markerIdCounter = 0;
 let draggedWord = null;
 
-// Touch drag state
+// Touch drag state (word chips)
 let touchDragEl = null;
 let touchGhost = null;
 let touchCurrentTarget = null;
@@ -66,6 +66,17 @@ let selectedWord = null;
 // Label dragging state
 let draggingLabel = null;
 let labelDragStart = null;
+
+// Zoom & Pan state
+let zoomLevel = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let panStart = null;
+
+// Pinch zoom state
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
 
 // ---- Init ----
 function init() {
@@ -79,7 +90,238 @@ function init() {
     setupDragAndDrop();
     setupTouchDrag();
     setupLabelDrag();
+    setupZoomPan();
 }
+
+// ---- Zoom & Pan ----
+function applyZoom() {
+    const container = document.getElementById('image-container');
+    container.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
+
+    const viewport = document.getElementById('image-viewport');
+    viewport.classList.toggle('zoomed', zoomLevel > 1.05);
+}
+
+function zoomIn() {
+    zoomLevel = Math.min(zoomLevel * 1.3, 5);
+    clampPan();
+    applyZoom();
+}
+
+function zoomOut() {
+    zoomLevel = Math.max(zoomLevel / 1.3, 1);
+    if (zoomLevel < 1.05) { zoomLevel = 1; panX = 0; panY = 0; }
+    clampPan();
+    applyZoom();
+}
+
+function zoomReset() {
+    zoomLevel = 1;
+    panX = 0;
+    panY = 0;
+    applyZoom();
+}
+
+function clampPan() {
+    if (zoomLevel <= 1) { panX = 0; panY = 0; return; }
+    const viewport = document.getElementById('image-viewport');
+    const container = document.getElementById('image-container');
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const cw = container.scrollWidth * zoomLevel;
+    const ch = container.scrollHeight * zoomLevel;
+
+    const maxX = 0;
+    const minX = Math.min(0, vw - cw);
+    const maxY = 0;
+    const minY = Math.min(0, vh - ch);
+
+    panX = Math.max(minX, Math.min(maxX, panX));
+    panY = Math.max(minY, Math.min(maxY, panY));
+}
+
+// Convert screen coordinates to image-container percentage coordinates
+function screenToContainerPct(clientX, clientY) {
+    const container = document.getElementById('image-container');
+    // Get the container's untransformed dimensions
+    const w = container.scrollWidth;
+    const h = container.scrollHeight;
+    // Get viewport position
+    const viewport = document.getElementById('image-viewport');
+    const vRect = viewport.getBoundingClientRect();
+    // Account for pan and zoom
+    const localX = (clientX - vRect.left - panX) / zoomLevel;
+    const localY = (clientY - vRect.top - panY) / zoomLevel;
+    return {
+        x: (localX / w) * 100,
+        y: (localY / h) * 100
+    };
+}
+
+function setupZoomPan() {
+    const viewport = document.getElementById('image-viewport');
+
+    // ---- Mouse wheel zoom ----
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const oldZoom = zoomLevel;
+        zoomLevel = Math.max(1, Math.min(5, zoomLevel * delta));
+
+        if (zoomLevel > 1) {
+            // Zoom toward mouse position
+            const vRect = viewport.getBoundingClientRect();
+            const mx = e.clientX - vRect.left;
+            const my = e.clientY - vRect.top;
+            panX = mx - (mx - panX) * (zoomLevel / oldZoom);
+            panY = my - (my - panY) * (zoomLevel / oldZoom);
+        } else {
+            panX = 0;
+            panY = 0;
+        }
+
+        clampPan();
+        applyZoom();
+    }, { passive: false });
+
+    // ---- Mouse pan (drag on viewport when zoomed) ----
+    viewport.addEventListener('mousedown', (e) => {
+        if (zoomLevel <= 1.05) return;
+        // Only pan if clicking on the image area, not on markers/labels
+        if (e.target.closest('.marker-dot') || e.target.closest('.marker-label') ||
+            e.target.closest('.marker-delete') || e.target.closest('.zoom-controls')) return;
+
+        // Don't start panning if we might be placing a marker — we'll determine
+        // intent by whether the user moves (pan) or just clicks (place marker)
+        panStart = { x: e.clientX, y: e.clientY, startPanX: panX, startPanY: panY, moved: false };
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!panStart) return;
+        if (draggingLabel !== null) return;
+
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+
+        if (!panStart.moved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+            panStart.moved = true;
+            isPanning = true;
+            viewport.classList.add('panning');
+        }
+
+        if (panStart.moved) {
+            panX = panStart.startPanX + dx;
+            panY = panStart.startPanY + dy;
+            clampPan();
+            applyZoom();
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (panStart) {
+            isPanning = false;
+            viewport.classList.remove('panning');
+            panStart = null;
+        }
+    });
+
+    // ---- Touch: pinch zoom + two-finger pan ----
+    let lastTouchCount = 0;
+    let touchPanStart = null;
+
+    viewport.addEventListener('touchstart', (e) => {
+        if (e.target.closest('.zoom-controls')) return;
+
+        if (e.touches.length === 2) {
+            // Pinch zoom start
+            e.preventDefault();
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+            pinchStartZoom = zoomLevel;
+            touchPanStart = {
+                midX: (t1.clientX + t2.clientX) / 2,
+                midY: (t1.clientY + t2.clientY) / 2,
+                startPanX: panX,
+                startPanY: panY
+            };
+        } else if (e.touches.length === 1 && zoomLevel > 1.05) {
+            // Single finger pan when zoomed
+            const t = e.touches[0];
+            if (!e.target.closest('.marker-dot') && !e.target.closest('.marker-label') &&
+                !e.target.closest('.marker-delete')) {
+                touchPanStart = {
+                    x: t.clientX, y: t.clientY,
+                    startPanX: panX, startPanY: panY,
+                    moved: false, isSingleFinger: true
+                };
+            }
+        }
+        lastTouchCount = e.touches.length;
+    }, { passive: false });
+
+    viewport.addEventListener('touchmove', (e) => {
+        if (e.target.closest('.zoom-controls')) return;
+
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+            const oldZoom = zoomLevel;
+            zoomLevel = Math.max(1, Math.min(5, pinchStartZoom * (dist / pinchStartDist)));
+
+            // Pan with pinch center
+            if (touchPanStart) {
+                const midX = (t1.clientX + t2.clientX) / 2;
+                const midY = (t1.clientY + t2.clientY) / 2;
+                const vRect = viewport.getBoundingClientRect();
+                const anchorX = midX - vRect.left;
+                const anchorY = midY - vRect.top;
+                panX = anchorX - (anchorX - touchPanStart.startPanX) * (zoomLevel / pinchStartZoom);
+                panY = anchorY - (anchorY - touchPanStart.startPanY) * (zoomLevel / pinchStartZoom);
+                // Also apply pan from mid-point movement
+                panX += midX - touchPanStart.midX;
+                panY += midY - touchPanStart.midY;
+            }
+
+            if (zoomLevel <= 1) { panX = 0; panY = 0; }
+            clampPan();
+            applyZoom();
+        } else if (e.touches.length === 1 && touchPanStart && touchPanStart.isSingleFinger) {
+            const t = e.touches[0];
+            const dx = t.clientX - touchPanStart.x;
+            const dy = t.clientY - touchPanStart.y;
+
+            if (!touchPanStart.moved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+                touchPanStart.moved = true;
+            }
+
+            if (touchPanStart.moved) {
+                e.preventDefault();
+                panX = touchPanStart.startPanX + dx;
+                panY = touchPanStart.startPanY + dy;
+                clampPan();
+                applyZoom();
+            }
+        }
+    }, { passive: false });
+
+    viewport.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+            touchPanStart = null;
+        }
+        if (e.touches.length < 2) {
+            pinchStartDist = 0;
+        }
+    });
+}
+
+// Make zoom functions global for onclick
+window.zoomIn = zoomIn;
+window.zoomOut = zoomOut;
+window.zoomReset = zoomReset;
 
 // ---- Mode ----
 function setMode(mode) {
@@ -96,18 +338,19 @@ function setMode(mode) {
         inst.innerHTML = `<h3>Teacher Mode</h3>
             <p>1. Tap the image to place a pin<br>
                2. Tap a term, then tap a pin's label to assign it<br>
-               3. Drag a label to reposition it (a leader line will connect it to the pin)<br>
+               3. Drag a label to reposition it (leader line connects to pin)<br>
                4. Tap X to remove a pin<br>
-               5. Save when done</p>`;
+               5. Use +/&minus; or pinch to zoom, drag to pan<br>
+               6. Save when done</p>`;
     } else {
         const hasKey = answerKeys[currentImage] && answerKeys[currentImage].length > 0;
         if (hasKey) {
             inst.innerHTML = `<h3>Student Mode</h3>
                 <p>Drag terms onto the numbered markers, or tap a term then tap a marker.<br>
-                   Tap Submit when done.</p>`;
+                   Use +/&minus; to zoom in. Tap Submit when done.</p>`;
         } else {
             inst.innerHTML = `<h3>Student Mode</h3>
-                <p style="color:#ef4444;">No answer key saved for this image yet.
+                <p style="color:var(--coral);">No answer key saved for this image yet.
                    Switch to Teacher Mode first.</p>`;
         }
     }
@@ -145,6 +388,7 @@ function setupTabs() {
             currentImage = tab.dataset.image;
             document.getElementById('results').style.display = 'none';
             clearSelectedWord();
+            zoomReset();
             renderAll();
             if (currentMode === 'student') setMode('student');
         });
@@ -177,7 +421,6 @@ function renderWordBank() {
                      data-word="${escapeAttr(w)}">${w}</div>`;
     }).join('');
 
-    // Tap-to-select on word chips
     list.querySelectorAll('.word-chip:not(.used)').forEach(chip => {
         chip.addEventListener('click', (e) => {
             if (!chip._wasDragged) {
@@ -214,7 +457,6 @@ function renderMarkers() {
         dot.textContent = idx + 1;
         dot.dataset.id = mk.id;
 
-        // Tap dot to assign selected word
         dot.addEventListener('click', (e) => {
             if (selectedWord) {
                 e.preventDefault();
@@ -235,11 +477,8 @@ function renderMarkers() {
         label.style.top = labelY + '%';
         label.textContent = mk.word || 'Drop here';
         label.dataset.markerId = mk.id;
-
-        // Make label a drag handle for repositioning
         label.classList.add('draggable-label');
 
-        // Tap label to assign selected word
         label.addEventListener('click', (e) => {
             if (selectedWord) {
                 e.preventDefault();
@@ -272,29 +511,16 @@ function renderMarkers() {
         });
 
         // --- Desktop drop targets ---
-        label.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            label.classList.add('drop-hover');
-        });
-        label.addEventListener('dragleave', () => {
-            label.classList.remove('drop-hover');
-        });
+        label.addEventListener('dragover', (e) => { e.preventDefault(); label.classList.add('drop-hover'); });
+        label.addEventListener('dragleave', () => { label.classList.remove('drop-hover'); });
         label.addEventListener('drop', (e) => {
-            e.preventDefault();
-            label.classList.remove('drop-hover');
+            e.preventDefault(); label.classList.remove('drop-hover');
             if (draggedWord) assignWord(mk.id, draggedWord);
         });
-
-        dot.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            label.classList.add('drop-hover');
-        });
-        dot.addEventListener('dragleave', () => {
-            label.classList.remove('drop-hover');
-        });
+        dot.addEventListener('dragover', (e) => { e.preventDefault(); label.classList.add('drop-hover'); });
+        dot.addEventListener('dragleave', () => { label.classList.remove('drop-hover'); });
         dot.addEventListener('drop', (e) => {
-            e.preventDefault();
-            label.classList.remove('drop-hover');
+            e.preventDefault(); label.classList.remove('drop-hover');
             if (draggedWord) assignWord(mk.id, draggedWord);
         });
 
@@ -312,8 +538,6 @@ function renderLines() {
     m.forEach(mk => {
         const dx = mk.labelDx || 0;
         const dy = mk.labelDy || 5;
-
-        // Only draw line if label is offset from dot
         if (Math.abs(dx) < 1 && Math.abs(dy) < 3) return;
 
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -330,7 +554,6 @@ function renderLines() {
         line.setAttribute('stroke-width', '2');
         line.setAttribute('stroke-dasharray', '4,3');
         line.setAttribute('opacity', '0.8');
-
         svg.appendChild(line);
     });
 }
@@ -343,18 +566,20 @@ function setupLabelDrag() {
     container.addEventListener('mousedown', (e) => {
         const label = e.target.closest('.draggable-label');
         if (!label) return;
-        // Don't start label drag if we're assigning a word
         if (selectedWord) return;
 
         e.preventDefault();
+        e.stopPropagation();
         const markerId = parseInt(label.dataset.markerId);
-        const rect = container.getBoundingClientRect();
+        const mk = findMarker(markerId);
+        if (mk) {
+            mk._startDx = mk.labelDx || 0;
+            mk._startDy = mk.labelDy || 5;
+        }
         draggingLabel = markerId;
         labelDragStart = {
             mouseX: e.clientX,
-            mouseY: e.clientY,
-            containerW: rect.width,
-            containerH: rect.height
+            mouseY: e.clientY
         };
         label.classList.add('label-dragging');
     });
@@ -365,21 +590,18 @@ function setupLabelDrag() {
         const mk = findMarker(draggingLabel);
         if (!mk) return;
 
-        const dx = e.clientX - labelDragStart.mouseX;
-        const dy = e.clientY - labelDragStart.mouseY;
-        const pctDx = (dx / labelDragStart.containerW) * 100;
-        const pctDy = (dy / labelDragStart.containerH) * 100;
+        const container = document.getElementById('image-container');
+        // Convert pixel delta to percentage, accounting for zoom
+        const dx = (e.clientX - labelDragStart.mouseX) / zoomLevel;
+        const dy = (e.clientY - labelDragStart.mouseY) / zoomLevel;
+        const pctDx = (dx / container.scrollWidth) * 100;
+        const pctDy = (dy / container.scrollHeight) * 100;
 
-        // Update label position in real-time
         const label = document.querySelector(`.marker-label[data-marker-id="${draggingLabel}"]`);
         if (label) {
-            const newX = mk.x + (mk._startDx || mk.labelDx || 0) + pctDx;
-            const newY = mk.y + (mk._startDy || mk.labelDy || 5) + pctDy;
-            label.style.left = newX + '%';
-            label.style.top = newY + '%';
+            label.style.left = (mk.x + mk._startDx + pctDx) + '%';
+            label.style.top = (mk.y + mk._startDy + pctDy) + '%';
         }
-
-        // Update line in real-time
         updateLiveLineForMarker(mk, pctDx, pctDy);
     });
 
@@ -393,12 +615,11 @@ function setupLabelDrag() {
         const label = e.target.closest('.draggable-label');
         if (!label) return;
         if (selectedWord) return;
+        if (e.touches.length !== 1) return;
 
         const markerId = parseInt(label.dataset.markerId);
         const touch = e.touches[0];
-        const rect = container.getBoundingClientRect();
 
-        // Store start info but wait for movement to confirm drag
         label._touchStartX = touch.clientX;
         label._touchStartY = touch.clientY;
         label._touchMarkerId = markerId;
@@ -408,6 +629,7 @@ function setupLabelDrag() {
     container.addEventListener('touchmove', (e) => {
         const label = e.target.closest('.draggable-label');
         if (!label || label._touchMarkerId === undefined) return;
+        if (e.touches.length !== 1) return;
 
         const touch = e.touches[0];
         const dx = touch.clientX - label._touchStartX;
@@ -415,7 +637,6 @@ function setupLabelDrag() {
 
         if (!label._touchMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
             label._touchMoved = true;
-            const rect = container.getBoundingClientRect();
             draggingLabel = label._touchMarkerId;
             const mk = findMarker(draggingLabel);
             if (mk) {
@@ -424,26 +645,23 @@ function setupLabelDrag() {
             }
             labelDragStart = {
                 mouseX: label._touchStartX,
-                mouseY: label._touchStartY,
-                containerW: rect.width,
-                containerH: rect.height
+                mouseY: label._touchStartY
             };
             label.classList.add('label-dragging');
         }
 
         if (label._touchMoved && draggingLabel !== null) {
             e.preventDefault();
+            e.stopPropagation();
             const mk = findMarker(draggingLabel);
             if (!mk) return;
 
-            const pctDx = (dx / labelDragStart.containerW) * 100;
-            const pctDy = (dy / labelDragStart.containerH) * 100;
+            const container = document.getElementById('image-container');
+            const pctDx = ((dx / zoomLevel) / container.scrollWidth) * 100;
+            const pctDy = ((dy / zoomLevel) / container.scrollHeight) * 100;
 
-            const newX = mk.x + mk._startDx + pctDx;
-            const newY = mk.y + mk._startDy + pctDy;
-            label.style.left = newX + '%';
-            label.style.top = newY + '%';
-
+            label.style.left = (mk.x + mk._startDx + pctDx) + '%';
+            label.style.top = (mk.y + mk._startDy + pctDy) + '%';
             updateLiveLineForMarker(mk, pctDx, pctDy);
         }
     }, { passive: false });
@@ -456,7 +674,6 @@ function setupLabelDrag() {
             const touch = e.changedTouches[0];
             finishLabelDrag(touch.clientX, touch.clientY);
         }
-
         label._touchMarkerId = undefined;
         label._touchMoved = false;
     });
@@ -467,13 +684,14 @@ function finishLabelDrag(endX, endY) {
 
     const mk = findMarker(draggingLabel);
     if (mk && labelDragStart) {
-        const dx = endX - labelDragStart.mouseX;
-        const dy = endY - labelDragStart.mouseY;
-        const pctDx = (dx / labelDragStart.containerW) * 100;
-        const pctDy = (dy / labelDragStart.containerH) * 100;
+        const container = document.getElementById('image-container');
+        const dx = (endX - labelDragStart.mouseX) / zoomLevel;
+        const dy = (endY - labelDragStart.mouseY) / zoomLevel;
+        const pctDx = (dx / container.scrollWidth) * 100;
+        const pctDy = (dy / container.scrollHeight) * 100;
 
-        mk.labelDx = (mk._startDx || mk.labelDx || 0) + pctDx;
-        mk.labelDy = (mk._startDy || mk.labelDy || 5) + pctDy;
+        mk.labelDx = mk._startDx + pctDx;
+        mk.labelDy = mk._startDy + pctDy;
         delete mk._startDx;
         delete mk._startDy;
         saveMarkers();
@@ -489,10 +707,8 @@ function updateLiveLineForMarker(mk, pctDx, pctDy) {
     const svg = document.getElementById('lines-layer');
     const existingLine = svg.querySelector(`line[data-id="${mk.id}"]`);
 
-    const startDx = mk._startDx || mk.labelDx || 0;
-    const startDy = mk._startDy || mk.labelDy || 5;
-    const newDx = startDx + pctDx;
-    const newDy = startDy + pctDy;
+    const newDx = mk._startDx + pctDx;
+    const newDy = mk._startDy + pctDy;
 
     if (existingLine) {
         existingLine.setAttribute('x2', (mk.x + newDx) + '%');
@@ -521,9 +737,7 @@ function selectWord(word) {
     clearSelectedWord();
     selectedWord = word;
     document.querySelectorAll('.word-chip').forEach(chip => {
-        if (chip.dataset.word === word) {
-            chip.classList.add('selected');
-        }
+        if (chip.dataset.word === word) chip.classList.add('selected');
     });
     showToast(`"${word}" selected — now tap a marker`, '');
 }
@@ -539,12 +753,13 @@ function setupImageClick() {
 
     container.addEventListener('click', (e) => {
         if (currentMode !== 'teacher') return;
+        if (isPanning) return;
         if (e.target.closest('.marker-dot') || e.target.closest('.marker-label') ||
             e.target.closest('.marker-delete') || e.target.closest('.draggable-label')) return;
-        const rect = container.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
-        addMarker(x, y);
+
+        const pct = screenToContainerPct(e.clientX, e.clientY);
+        if (pct.x < 0 || pct.x > 100 || pct.y < 0 || pct.y > 100) return;
+        addMarker(pct.x, pct.y);
     });
 
     // Touch tap for placing markers
@@ -564,8 +779,7 @@ function setupImageClick() {
         if (!touchStartPos) return;
         if (e.target.closest('.marker-dot') || e.target.closest('.marker-label') ||
             e.target.closest('.marker-delete') || e.target.closest('.draggable-label')) {
-            touchStartPos = null;
-            return;
+            touchStartPos = null; return;
         }
 
         const elapsed = Date.now() - touchStartTime;
@@ -577,10 +791,9 @@ function setupImageClick() {
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { touchStartPos = null; return; }
 
         e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const x = ((touch.clientX - rect.left) / rect.width) * 100;
-        const y = ((touch.clientY - rect.top) / rect.height) * 100;
-        addMarker(x, y);
+        const pct = screenToContainerPct(touch.clientX, touch.clientY);
+        if (pct.x < 0 || pct.x > 100 || pct.y < 0 || pct.y > 100) { touchStartPos = null; return; }
+        addMarker(pct.x, pct.y);
         touchStartPos = null;
     });
 }
@@ -702,7 +915,6 @@ function setupTouchDrag() {
                 label.classList.add('drop-hover');
                 touchCurrentTarget = label;
             } else if (dot) {
-                // Find corresponding label
                 const id = dot.dataset.id;
                 const correspondingLabel = document.querySelector(`.marker-label[data-marker-id="${id}"]`);
                 if (correspondingLabel) {
@@ -718,22 +930,13 @@ function setupTouchDrag() {
     wordList.addEventListener('touchend', (e) => {
         if (!touchDragEl) return;
 
-        const wasMoved = touchDragEl._touchMoved;
-
-        if (wasMoved && touchCurrentTarget && draggedWord) {
+        if (touchDragEl._touchMoved && touchCurrentTarget && draggedWord) {
             const markerId = parseInt(touchCurrentTarget.dataset.markerId);
-            if (markerId) {
-                assignWord(markerId, draggedWord);
-            }
+            if (markerId) assignWord(markerId, draggedWord);
         }
 
-        if (touchGhost) {
-            touchGhost.remove();
-            touchGhost = null;
-        }
-        if (touchDragEl) {
-            touchDragEl.classList.remove('dragging');
-        }
+        if (touchGhost) { touchGhost.remove(); touchGhost = null; }
+        if (touchDragEl) touchDragEl.classList.remove('dragging');
         document.querySelectorAll('.marker-label.drop-hover').forEach(l => l.classList.remove('drop-hover'));
         touchDragEl = null;
         touchCurrentTarget = null;
@@ -832,7 +1035,7 @@ function submitAnswers() {
             </div>`;
         });
     } else {
-        html += `<div class="detail" style="color:#22c55e; text-align:center;">Perfect score!</div>`;
+        html += `<div class="detail" style="color:#4a7c59; text-align:center;">Perfect score!</div>`;
     }
 
     resultsDiv.innerHTML = html;
@@ -876,6 +1079,12 @@ function showToast(msg, type) {
 function escapeAttr(s) {
     return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+// ---- Globals for HTML onclick ----
+window.setMode = setMode;
+window.saveAnswerKey = saveAnswerKey;
+window.submitAnswers = submitAnswers;
+window.resetCurrent = resetCurrent;
 
 // ---- Start ----
 document.addEventListener('DOMContentLoaded', init);

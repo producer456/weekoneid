@@ -138,28 +138,103 @@ main {
     margin: 0 auto;
 }
 
-.image-container {
+/* ---- Zoom Viewport ---- */
+.image-viewport {
     flex: 1;
     position: relative;
     background: white;
     border-radius: 14px;
     border: 2px solid var(--sand-dark);
     overflow: hidden;
-    cursor: crosshair;
     min-height: 300px;
-    display: flex;
+    box-shadow: 0 4px 20px rgba(12, 45, 72, 0.12);
+}
+
+.image-container {
+    position: relative;
+    transform-origin: 0 0;
+    cursor: crosshair;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 20px rgba(12, 45, 72, 0.12);
+    min-width: 100%;
+    min-height: 300px;
+    transition: none;
 }
 
 .image-container img {
     max-width: 100%;
-    max-height: 75vh;
     display: block;
     user-select: none;
     -webkit-user-drag: none;
     pointer-events: none;
+}
+
+/* Zoom controls */
+.zoom-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(12, 45, 72, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px;
+    padding: 4px 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.zoom-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.12);
+    color: var(--sand-light);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    min-height: 36px;
+}
+
+.zoom-btn:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+.zoom-btn:active {
+    transform: scale(0.92);
+}
+
+.zoom-btn.zoom-fit {
+    font-size: 0.7rem;
+    font-weight: 700;
+    width: auto;
+    padding: 0 10px;
+}
+
+.zoom-level {
+    color: var(--ocean-sky);
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 38px;
+    text-align: center;
+}
+
+/* Panning cursor */
+.image-viewport.panning .image-container {
+    cursor: grabbing;
+}
+
+.image-viewport.zoomed .image-container {
+    cursor: grab;
 }
 
 /* SVG lines layer */
