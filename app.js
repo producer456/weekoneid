@@ -60,6 +60,9 @@ let touchDragEl = null;
 let touchGhost = null;
 let touchCurrentTarget = null;
 
+// Tap-to-select state
+let selectedWord = null;
+
 // ---- Init ----
 function init() {
     loadAnswerKeys();
@@ -88,7 +91,7 @@ function setMode(mode) {
         inst.innerHTML = `<h3>Teacher Mode</h3>
             <p>1. Tap the image to place a marker<br>
                2. Drag a term onto the marker (or tap term then tap marker)<br>
-               3. Long-press a marker to remove it<br>
+               3. Tap the X on a marker to remove it<br>
                4. Save when done</p>`;
     } else {
         const hasKey = answerKeys[currentImage] && answerKeys[currentImage].length > 0;
@@ -104,7 +107,25 @@ function setMode(mode) {
     }
 
     document.getElementById('results').style.display = 'none';
-    resetCurrent();
+
+    if (mode === 'student') {
+        // Load marker positions from answer key but clear words
+        const key = answerKeys[currentImage];
+        if (key && key.length > 0) {
+            markers[currentImage] = key.map(k => ({
+                id: k.id,
+                x: k.x,
+                y: k.y,
+                word: null,
+                resultClass: null
+            }));
+        } else {
+            markers[currentImage] = [];
+        }
+        saveMarkers();
+    }
+
+    clearSelectedWord();
     renderAll();
 }
 
@@ -116,6 +137,7 @@ function setupTabs() {
             tab.classList.add('active');
             currentImage = tab.dataset.image;
             document.getElementById('results').style.display = 'none';
+            clearSelectedWord();
             renderAll();
             if (currentMode === 'student') setMode('student');
         });
@@ -146,6 +168,17 @@ function renderWordBank() {
                      draggable="${!used}"
                      data-word="${escapeAttr(w)}">${w}</div>`;
     }).join('');
+
+    // Add tap-to-select on word chips
+    list.querySelectorAll('.word-chip:not(.used)').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            // Only select if not dragging
+            if (!chip._wasDragged) {
+                e.stopPropagation();
+                selectWord(chip.dataset.word);
+            }
+        });
+    });
 }
 
 function getUsedWords() {
@@ -181,33 +214,28 @@ function renderMarkers() {
         label.textContent = mk.word || 'Drop here';
         label.dataset.markerId = mk.id;
 
-        // Right-click to remove (teacher only) — desktop
-        if (currentMode === 'teacher') {
-            dot.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
+        // Delete button (visible X) — teacher mode: removes marker, student mode: unassigns word
+        const deleteBtn = document.createElement('div');
+        deleteBtn.className = 'marker-delete';
+        deleteBtn.textContent = 'x';
+        deleteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentMode === 'teacher') {
                 removeMarker(mk.id);
-            });
-            label.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
+            } else {
                 unassignWord(mk.id);
-            });
-
-            // Long-press to remove — touch
-            let longPressTimer = null;
-            dot.addEventListener('touchstart', (e) => {
-                longPressTimer = setTimeout(() => {
-                    e.preventDefault();
-                    removeMarker(mk.id);
-                    longPressTimer = null;
-                }, 600);
-            }, { passive: false });
-            dot.addEventListener('touchend', () => {
-                if (longPressTimer) clearTimeout(longPressTimer);
-            });
-            dot.addEventListener('touchmove', () => {
-                if (longPressTimer) clearTimeout(longPressTimer);
-            });
-        }
+            }
+        });
+        deleteBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentMode === 'teacher') {
+                removeMarker(mk.id);
+            } else {
+                unassignWord(mk.id);
+            }
+        });
 
         // Tap-to-assign: if a word is selected, tapping a marker assigns it
         const handleTapAssign = (e) => {
@@ -237,19 +265,33 @@ function renderMarkers() {
             }
         });
 
+        // Also allow drop on the dot
+        dot.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            label.classList.add('drop-hover');
+        });
+        dot.addEventListener('dragleave', () => {
+            label.classList.remove('drop-hover');
+        });
+        dot.addEventListener('drop', (e) => {
+            e.preventDefault();
+            label.classList.remove('drop-hover');
+            if (draggedWord) {
+                assignWord(mk.id, draggedWord);
+            }
+        });
+
+        div.appendChild(deleteBtn);
         div.appendChild(dot);
         div.appendChild(label);
         layer.appendChild(div);
     });
 }
 
-// ---- Tap-to-select word (touch alternative to drag) ----
-let selectedWord = null;
-
+// ---- Tap-to-select word ----
 function selectWord(word) {
     clearSelectedWord();
     selectedWord = word;
-    // Highlight the selected chip
     document.querySelectorAll('.word-chip').forEach(chip => {
         if (chip.dataset.word === word) {
             chip.classList.add('selected');
@@ -267,7 +309,6 @@ function clearSelectedWord() {
 function setupImageClick() {
     const container = document.getElementById('image-container');
 
-    // Desktop click
     container.addEventListener('click', (e) => {
         if (currentMode !== 'teacher') return;
         if (e.target.closest('.marker')) return;
@@ -277,7 +318,7 @@ function setupImageClick() {
         addMarker(x, y);
     });
 
-    // Touch tap — we need to distinguish from scrolling
+    // Touch tap for placing markers
     let touchStartPos = null;
     let touchStartTime = 0;
     container.addEventListener('touchstart', (e) => {
@@ -294,12 +335,12 @@ function setupImageClick() {
         if (e.target.closest('.marker')) { touchStartPos = null; return; }
 
         const elapsed = Date.now() - touchStartTime;
-        if (elapsed > 500) { touchStartPos = null; return; } // was a long press, not a tap
+        if (elapsed > 500) { touchStartPos = null; return; }
 
         const touch = e.changedTouches[0];
         const dx = touch.clientX - touchStartPos.x;
         const dy = touch.clientY - touchStartPos.y;
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { touchStartPos = null; return; } // was a scroll
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { touchStartPos = null; return; }
 
         e.preventDefault();
         const rect = container.getBoundingClientRect();
@@ -381,11 +422,11 @@ function setupTouchDrag() {
         const chip = e.target.closest('.word-chip');
         if (!chip || chip.classList.contains('used')) return;
 
-        // Tap-to-select: if it's a quick tap, select the word instead of dragging
         chip._touchStartTime = Date.now();
         chip._touchMoved = false;
         chip._touchStartX = e.touches[0].clientX;
         chip._touchStartY = e.touches[0].clientY;
+        chip._wasDragged = false;
 
         touchDragEl = chip;
         draggedWord = chip.dataset.word;
@@ -398,10 +439,9 @@ function setupTouchDrag() {
         const dx = touch.clientX - (touchDragEl._touchStartX || 0);
         const dy = touch.clientY - (touchDragEl._touchStartY || 0);
 
-        // Only start drag if moved enough
         if (!touchDragEl._touchMoved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
             touchDragEl._touchMoved = true;
-            // Create ghost element
+            touchDragEl._wasDragged = true;
             touchGhost = document.createElement('div');
             touchGhost.className = 'word-chip touch-ghost';
             touchGhost.textContent = touchDragEl.textContent;
@@ -414,12 +454,14 @@ function setupTouchDrag() {
             touchGhost.style.left = (touch.clientX - 40) + 'px';
             touchGhost.style.top = (touch.clientY - 20) + 'px';
 
-            // Check if over a marker label
+            // Hide ghost briefly to find element underneath
+            touchGhost.style.display = 'none';
             const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            touchGhost.style.display = '';
+
             const label = elemBelow ? elemBelow.closest('.marker-label') : null;
             const dot = elemBelow ? elemBelow.closest('.marker-dot') : null;
 
-            // Clear all hover states
             document.querySelectorAll('.marker-label.drop-hover').forEach(l => l.classList.remove('drop-hover'));
 
             if (label) {
@@ -444,17 +486,13 @@ function setupTouchDrag() {
         const wasMoved = touchDragEl._touchMoved;
 
         if (wasMoved && touchCurrentTarget && draggedWord) {
-            // Drop on marker
             const markerId = parseInt(touchCurrentTarget.dataset.markerId);
             if (markerId) {
                 assignWord(markerId, draggedWord);
             }
-        } else if (!wasMoved) {
-            // It was a tap — use tap-to-select
-            selectWord(draggedWord);
         }
+        // If not moved, the click handler will fire and do tap-to-select
 
-        // Cleanup
         if (touchGhost) {
             touchGhost.remove();
             touchGhost = null;
@@ -569,8 +607,11 @@ function submitAnswers() {
 // ---- Reset ----
 function resetCurrent() {
     clearSelectedWord();
+    // Clear all markers for current image
+    markers[currentImage] = [];
+
     if (currentMode === 'student') {
-        // Reload marker positions from answer key but clear all word assignments
+        // Reload marker positions from answer key but with no words
         const key = answerKeys[currentImage];
         if (key && key.length > 0) {
             markers[currentImage] = key.map(k => ({
@@ -580,17 +621,13 @@ function resetCurrent() {
                 word: null,
                 resultClass: null
             }));
-        } else {
-            markers[currentImage] = [];
         }
-    } else {
-        // Teacher mode: clear all markers and start fresh
-        markers[currentImage] = [];
     }
 
     saveMarkers();
     document.getElementById('results').style.display = 'none';
     renderAll();
+    showToast('Cleared!', 'success');
 }
 
 // ---- Toast ----
