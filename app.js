@@ -322,9 +322,9 @@ function renderLines() {
         line.setAttribute('x2', (mk.x + dx) + '%');
         line.setAttribute('y2', (mk.y + dy) + '%');
 
-        let color = '#3b82f6';
-        if (mk.resultClass === 'correct') color = '#22c55e';
-        if (mk.resultClass === 'incorrect') color = '#ef4444';
+        let color = '#1a6fa0';
+        if (mk.resultClass === 'correct') color = '#4a7c59';
+        if (mk.resultClass === 'incorrect') color = '#e07a5f';
 
         line.setAttribute('stroke', color);
         line.setAttribute('stroke-width', '2');
@@ -504,7 +504,7 @@ function updateLiveLineForMarker(mk, pctDx, pctDy) {
         line.setAttribute('y1', mk.y + '%');
         line.setAttribute('x2', (mk.x + newDx) + '%');
         line.setAttribute('y2', (mk.y + newDy) + '%');
-        line.setAttribute('stroke', '#3b82f6');
+        line.setAttribute('stroke', '#1a6fa0');
         line.setAttribute('stroke-width', '2');
         line.setAttribute('stroke-dasharray', '4,3');
         line.setAttribute('opacity', '0.8');
