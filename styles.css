@@ -119,7 +119,6 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
-    touch-action: pan-x pan-y;
 }
 
 .image-container img {
@@ -131,6 +130,17 @@ main {
     pointer-events: none;
 }
 
+/* SVG lines layer */
+#lines-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
 #markers-layer {
     position: absolute;
     top: 0;
@@ -140,14 +150,9 @@ main {
     pointer-events: none;
 }
 
-.marker {
-    position: absolute;
-    pointer-events: auto;
-    transform: translate(-50%, -50%);
-    z-index: 10;
-}
-
+/* ---- Marker Dots ---- */
 .marker-dot {
+    position: absolute;
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -161,46 +166,29 @@ main {
     font-size: 0.8rem;
     font-weight: 700;
     color: white;
-    transition: transform 0.15s, background 0.15s;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    pointer-events: auto;
     -webkit-touch-callout: none;
+    transition: transform 0.15s, background 0.15s;
 }
 
 .marker-dot:hover {
-    transform: scale(1.15);
+    transform: translate(-50%, -50%) scale(1.15);
 }
 
-/* Delete button on each marker */
-.marker-delete {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+.marker-dot.dot-correct {
+    background: #22c55e;
+}
+
+.marker-dot.dot-incorrect {
     background: #ef4444;
-    color: white;
-    font-size: 0.75rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 20;
-    border: 2px solid #1a1d27;
-    line-height: 1;
-    touch-action: manipulation;
 }
 
-.marker-delete:active {
-    transform: scale(0.9);
-    background: #dc2626;
-}
-
+/* ---- Marker Labels ---- */
 .marker-label {
     position: absolute;
-    top: 40px;
-    left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     background: #1a1d27;
     border: 2px solid #3b82f6;
     color: #e0e0e0;
@@ -214,11 +202,15 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 11;
+    pointer-events: auto;
+    cursor: grab;
+    user-select: none;
 }
 
 .marker-label.empty {
     border-style: dashed;
-    border-color: #555;
+    border-color: #666;
     color: #666;
     min-width: 90px;
 }
@@ -229,24 +221,50 @@ main {
     border-style: solid;
 }
 
-.marker.correct .marker-dot {
-    background: #22c55e;
-}
-
-.marker.incorrect .marker-dot {
-    background: #ef4444;
-}
-
-.marker.correct .marker-label {
+.marker-label.correct {
     border-color: #22c55e;
     background: #0d2818;
 }
 
-.marker.incorrect .marker-label {
+.marker-label.incorrect {
     border-color: #ef4444;
     background: #2d0f0f;
 }
 
+.marker-label.label-dragging {
+    cursor: grabbing;
+    opacity: 0.85;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ---- Delete Button ---- */
+.marker-delete {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    pointer-events: auto;
+    border: 2px solid #1a1d27;
+    line-height: 1;
+    touch-action: manipulation;
+}
+
+.marker-delete:active {
+    transform: translate(-50%, -50%) scale(0.9);
+    background: #dc2626;
+}
+
+/* ---- Sidebar ---- */
 .sidebar {
     width: 320px;
     flex-shrink: 0;
@@ -354,6 +372,7 @@ main {
     white-space: nowrap;
 }
 
+/* ---- Buttons ---- */
 .actions {
     display: flex;
     flex-direction: column;
@@ -375,33 +394,16 @@ main {
     transform: scale(0.97);
 }
 
-.save-btn {
-    background: #22c55e;
-    color: white;
-}
+.save-btn { background: #22c55e; color: white; }
+.save-btn:hover { background: #16a34a; }
 
-.save-btn:hover {
-    background: #16a34a;
-}
+.submit-btn { background: #3b82f6; color: white; }
+.submit-btn:hover { background: #2563eb; }
 
-.submit-btn {
-    background: #3b82f6;
-    color: white;
-}
+.reset-btn { background: #374151; color: #ccc; }
+.reset-btn:hover { background: #4b5563; }
 
-.submit-btn:hover {
-    background: #2563eb;
-}
-
-.reset-btn {
-    background: #374151;
-    color: #ccc;
-}
-
-.reset-btn:hover {
-    background: #4b5563;
-}
-
+/* ---- Results ---- */
 .results {
     background: #1a1d27;
     border: 1px solid #2a2d3a;
@@ -409,9 +411,7 @@ main {
     padding: 16px;
 }
 
-.results h3 {
-    margin-bottom: 8px;
-}
+.results h3 { margin-bottom: 8px; }
 
 .results .score {
     font-size: 2rem;
@@ -436,10 +436,9 @@ main {
     font-size: 0.85rem;
 }
 
-.results .wrong-item:last-child {
-    border-bottom: none;
-}
+.results .wrong-item:last-child { border-bottom: none; }
 
+/* ---- Toast ---- */
 .toast {
     position: fixed;
     bottom: 30px;
@@ -458,74 +457,29 @@ main {
     text-align: center;
 }
 
-.toast.show {
-    transform: translateX(-50%) translateY(0);
-}
-
+.toast.show { transform: translateX(-50%) translateY(0); }
 .toast.success { border-color: #22c55e; }
 .toast.error { border-color: #ef4444; }
 
 /* Student mode */
-.student-mode .image-container {
-    cursor: default;
-}
+.student-mode .image-container { cursor: default; }
 
-/* ---- Responsive / Mobile ---- */
+/* ---- Responsive ---- */
 @media (max-width: 900px) {
-    .workspace {
-        flex-direction: column;
-    }
-    .sidebar {
-        width: 100%;
-    }
-    .word-bank {
-        max-height: 40vh;
-    }
+    .workspace { flex-direction: column; }
+    .sidebar { width: 100%; }
+    .word-bank { max-height: 40vh; }
 }
 
 @media (max-width: 600px) {
-    header {
-        padding: 10px 12px;
-    }
-    header h1 {
-        font-size: 1rem;
-        width: 100%;
-    }
-    nav.image-tabs {
-        padding: 8px 12px;
-        gap: 4px;
-    }
-    .tab {
-        padding: 10px 14px;
-        font-size: 0.82rem;
-    }
-    main {
-        padding: 10px;
-    }
-    .image-container {
-        min-height: 250px;
-    }
-    .marker-dot {
-        width: 32px;
-        height: 32px;
-        font-size: 0.75rem;
-    }
-    .marker-label {
-        top: 36px;
-        font-size: 0.75rem;
-        padding: 5px 8px;
-    }
-    .word-chip {
-        padding: 8px 10px;
-        font-size: 0.8rem;
-    }
-    .sidebar {
-        gap: 8px;
-    }
-}
-
-/* Prevent text selection during drag on touch */
-body.touch-dragging {
-    user-select: none;
-    -webkit-user-select: none;
+    header { padding: 10px 12px; }
+    header h1 { font-size: 1rem; width: 100%; }
+    nav.image-tabs { padding: 8px 12px; gap: 4px; }
+    .tab { padding: 10px 14px; font-size: 0.82rem; }
+    main { padding: 10px; }
+    .image-container { min-height: 250px; }
+    .marker-dot { width: 32px; height: 32px; font-size: 0.75rem; }
+    .marker-label { font-size: 0.75rem; padding: 5px 8px; }
+    .word-chip { padding: 8px 10px; font-size: 0.8rem; }
+    .sidebar { gap: 8px; }
 }
