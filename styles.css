@@ -260,8 +260,8 @@ main {
 /* ---- Marker Dots ---- */
 .marker-dot {
     position: absolute;
-    width: 16px;
-    height: 16px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #ff6600;
     border: 2px solid #1a1a1a;
@@ -633,7 +633,7 @@ main {
     .tab { padding: 10px 14px; font-size: 0.82rem; }
     main { padding: 10px; }
     .image-container { min-height: 250px; }
-    .marker-dot { width: 14px; height: 14px; }
+    .marker-dot { width: 8px; height: 8px; }
     .marker-label { font-size: 0.75rem; padding: 5px 8px; }
     .word-chip { padding: 8px 10px; font-size: 0.8rem; }
     .sidebar { gap: 8px; }
