@@ -263,9 +263,9 @@ main {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: var(--ocean-light);
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(12, 45, 72, 0.4);
+    background: #ff6600;
+    border: 2px solid #1a1a1a;
+    box-shadow: 0 0 6px rgba(255, 102, 0, 0.6);
     cursor: pointer;
     display: flex;
     align-items: center;
