@@ -59,6 +59,9 @@
                     <button id="btn-save" class="action-btn save-btn" onclick="saveAnswerKey()">Save Answer Key</button>
                     <button id="btn-submit" class="action-btn submit-btn" onclick="submitAnswers()" style="display:none;">Submit Answers</button>
                     <button id="btn-reset" class="action-btn reset-btn" onclick="resetCurrent()">Reset</button>
+                    <button id="btn-export" class="action-btn data-btn" onclick="exportData()">Export Data</button>
+                    <button id="btn-import" class="action-btn data-btn" onclick="document.getElementById('import-file').click()">Import Data</button>
+                    <input type="file" id="import-file" accept="application/json,.json" style="display:none;" onchange="importData(event)">
                 </div>
 
                 <div id="results" class="results" style="display:none;"></div>

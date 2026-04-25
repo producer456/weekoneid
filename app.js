@@ -1029,6 +1029,59 @@ function loadAnswerKeys() {
     } catch(e) {}
 }
 
+// ---- Export / Import ----
+function exportData() {
+    const payload = {
+        app: 'bio40a-lab-quiz',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        bio40a_markers: localStorage.getItem('bio40a_markers'),
+        bio40a_markerCounter: localStorage.getItem('bio40a_markerCounter'),
+        bio40a_answerKeys: localStorage.getItem('bio40a_answerKeys')
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `bio40a-lab-quiz-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Backup downloaded', 'success');
+}
+
+function importData(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const payload = JSON.parse(e.target.result);
+            if (payload.app !== 'bio40a-lab-quiz') {
+                showToast('Not a BIO 40A backup file', 'error');
+                return;
+            }
+            const ok = confirm(
+                `Import backup from ${payload.exportedAt || 'unknown date'}?\n\n` +
+                `This will OVERWRITE all markers and answer keys on this device.`
+            );
+            if (!ok) return;
+            if (payload.bio40a_markers != null) localStorage.setItem('bio40a_markers', payload.bio40a_markers);
+            if (payload.bio40a_markerCounter != null) localStorage.setItem('bio40a_markerCounter', payload.bio40a_markerCounter);
+            if (payload.bio40a_answerKeys != null) localStorage.setItem('bio40a_answerKeys', payload.bio40a_answerKeys);
+            showToast('Import successful — reloading…', 'success');
+            setTimeout(() => location.reload(), 800);
+        } catch (err) {
+            showToast('Import failed: invalid JSON', 'error');
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
 // ---- Student Submit ----
 function submitAnswers() {
     const key = answerKeys[currentImage];
